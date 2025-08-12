@@ -1,91 +1,87 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Galeri Mobil - Raffasya Motor</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
-</head>
-<body class="bg-gray-100">
-
-<div class="max-w-5xl mx-auto py-10">
-  <h1 class="text-3xl font-bold mb-6 text-center">Galeri Mobil</h1>
-  <div id="mobil-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-<script>
-const SHEET_URL = "https://sheetdb.io/api/v1/rxfo08i7f6pyp"; // Ganti dengan URL CSV/JSON Sheet kamu
-const DRIVE_FOLDER_ID = "1tu_F8sPC8JYz24Y0HQroITgRIATXA1FX"; // Folder GDrive tempat AppSheet simpan foto
-
-// Ubah path relatif dari AppSheet ke URL Google Drive (syarat: folder public)
-function getDriveImageUrl(filePath) {
-  if (!filePath) return "";
-  const fileName = encodeURIComponent(filePath.split("/").pop());
-  // AppSheet biasanya simpan nama file asli, jadi kita gabung dengan URL view folder
-  return `https://drive.google.com/uc?export=view&id=${DRIVE_FOLDER_ID}&file=${fileName}`;
-}
-
-// Ambil data dari Google Sheets
-async function loadData() {
-  try {
-    const res = await fetch(SHEET_URL);
-    const data = await res.json(); // Jika CSV, perlu parse ke JSON dulu
-    renderMobil(data);
-  } catch (err) {
-    console.error("Gagal memuat data:", err);
-  }
-}
-
-function renderMobil(data) {
-  const container = document.getElementById("mobil-list");
-  container.innerHTML = "";
-
-  data.forEach(item => {
-    let photos = [];
-    for (let i = 1; i <= 10; i++) {
-      const key = `PHOTO ${i}`;
-      if (item[key]) {
-        photos.push(`
-          <div class="swiper-slide flex justify-center items-center bg-gray-50">
-            <img src="${getDriveImageUrl(item[key])}" class="object-contain max-h-[350px] w-auto mx-auto" />
-          </div>
-        `);
-      }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Galeri Foto AppSheet</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      margin: 0;
+      padding: 0;
     }
+    h1 {
+      text-align: center;
+      background: #222;
+      color: white;
+      padding: 15px;
+      margin: 0;
+    }
+    #gallery {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 15px;
+      padding: 20px;
+    }
+    .photo {
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      transition: transform 0.2s;
+    }
+    .photo:hover {
+      transform: scale(1.05);
+    }
+    .photo img {
+      display: block;
+      max-width: 250px;
+      height: auto;
+    }
+    .caption {
+      text-align: center;
+      padding: 8px;
+      font-size: 14px;
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Galeri Foto AppSheet</h1>
+  <div id="gallery">Memuat gambar...</div>
 
-    const card = document.createElement("div");
-    card.className = "bg-white rounded-xl shadow-md overflow-hidden";
-    card.innerHTML = `
-      <div class="swiper mySwiper">
-        <div class="swiper-wrapper">
-          ${photos.join("")}
-        </div>
-        <div class="swiper-pagination"></div>
-        <div class="swiper-button-next"></div>
-        <div class="swiper-button-prev"></div>
-      </div>
-      <div class="p-4">
-        <h2 class="text-lg font-bold">${item["MERK/TYPE MOBIL"] || "Tanpa Nama"}</h2>
-        <p class="text-gray-600">${item["NOPOL"] || ""}</p>
-        <p class="text-green-600 font-semibold">${item["HARGA JUAL (OTR)"] || ""}</p>
-      </div>
-    `;
+  <script>
+    const scriptURL = "https://script.google.com/macros/s/AKfycbzV5v__k_QN7yHGvvPzE3hkna1lGQ7rZ5Uj-MR84QIdhuSiDdhKbvDFloxMP6vChGUl/exec"; // Ganti dengan URL Web App kamu
 
-    container.appendChild(card);
-  });
-
-  // Inisialisasi Swiper
-  new Swiper(".mySwiper", {
-    loop: true,
-    pagination: { el: ".swiper-pagination" },
-    navigation: { nextEl: ".swiper-button-next", prevEl: ".swiper-button-prev" },
-  });
-}
-
-loadData();
-</script>
-
+    fetch(scriptURL)
+      .then(res => res.json())
+      .then(data => {
+        let gallery = document.getElementById("gallery");
+        gallery.innerHTML = ""; // Kosongkan loading text
+        
+        data.forEach(img => {
+          let container = document.createElement("div");
+          container.className = "photo";
+          
+          let image = document.createElement("img");
+          image.src = img.url;
+          image.alt = img.name;
+          
+          let caption = document.createElement("div");
+          caption.className = "caption";
+          caption.innerText = img.name;
+          
+          container.appendChild(image);
+          container.appendChild(caption);
+          gallery.appendChild(container);
+        });
+      })
+      .catch(err => {
+        document.getElementById("gallery").innerHTML = "Gagal memuat gambar.";
+        console.error(err);
+      });
+  </script>
 </body>
 </html>
