@@ -5,103 +5,87 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Galeri Mobil - Raffasya Motor</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css"/>
-  <style>
-    body { font-family: Arial, sans-serif; }
-  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
 </head>
 <body class="bg-gray-100">
 
-  <div class="max-w-6xl mx-auto p-4">
-    <h1 class="text-2xl font-bold mb-4">Galeri Mobil</h1>
-    <div id="mobilContainer" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
-  </div>
+<div class="max-w-5xl mx-auto py-10">
+  <h1 class="text-3xl font-bold mb-6 text-center">Galeri Mobil</h1>
+  <div id="mobil-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+</div>
 
-  <!-- Modal -->
-  <div id="detailModal" class="fixed inset-0 bg-black bg-opacity-50 hidden justify-center items-center z-50">
-    <div id="modalContent" class="bg-white rounded-lg shadow-lg max-w-lg w-full"></div>
-  </div>
+<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+<script>
+const SHEET_URL = "https://sheetdb.io/api/v1/rxfo08i7f6pyp"; // Ganti dengan URL CSV/JSON Sheet kamu
+const DRIVE_FOLDER_ID = "1_crqDIT258F1vIYdR5dqbKpJs3lQrvbX"; // Folder GDrive tempat AppSheet simpan foto
 
-  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-  <script>
-    const sheetURL = "https://sheetdb.io/api/v1/rxfo08i7f6pyp"; // ganti dengan API SheetDB kamu
-    const folderId = "1_crqDIT258F1vIYdR5dqbKpJs3lQrvbX"; // ganti dengan folder ID Google Drive kamu
+// Ubah path relatif dari AppSheet ke URL Google Drive (syarat: folder public)
+function getDriveImageUrl(filePath) {
+  if (!filePath) return "";
+  const fileName = encodeURIComponent(filePath.split("/").pop());
+  // AppSheet biasanya simpan nama file asli, jadi kita gabung dengan URL view folder
+  return `https://drive.google.com/uc?export=view&id=${DRIVE_FOLDER_ID}&file=${fileName}`;
+}
 
-    function formatRupiah(angka) {
-      return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(angka);
-    }
+// Ambil data dari Google Sheets
+async function loadData() {
+  try {
+    const res = await fetch(SHEET_URL);
+    const data = await res.json(); // Jika CSV, perlu parse ke JSON dulu
+    renderMobil(data);
+  } catch (err) {
+    console.error("Gagal memuat data:", err);
+  }
+}
 
-    function getDriveUrl(fileName) {
-      if (!fileName) return "";
-      const encodedName = encodeURIComponent(fileName);
-      // format ini untuk file di folder Drive yang public
-      return `https://drive.google.com/uc?export=view&id=${folderId}&file=${encodedName}`;
-    }
+function renderMobil(data) {
+  const container = document.getElementById("mobil-list");
+  container.innerHTML = "";
 
-    function showModal(item) {
-      const photos = [];
-      for (let j = 1; j <= 10; j++) {
-        const key = `PHOTO ${j}`;
-        if (item[key]) {
-          photos.push(`
-            <div class="swiper-slide flex justify-center items-center bg-gray-50">
-              <img src="${getDriveUrl(item[key])}" class="object-contain max-h-[350px] w-auto mx-auto" />
-            </div>
-          `);
-        }
+  data.forEach(item => {
+    let photos = [];
+    for (let i = 1; i <= 10; i++) {
+      const key = `PHOTO ${i}`;
+      if (item[key]) {
+        photos.push(`
+          <div class="swiper-slide flex justify-center items-center bg-gray-50">
+            <img src="${getDriveImageUrl(item[key])}" class="object-contain max-h-[350px] w-auto mx-auto" />
+          </div>
+        `);
       }
+    }
 
-      document.getElementById("modalContent").innerHTML = `
-        <div class="relative">
-          <button id="closeModalInner" class="absolute top-2 right-2 z-50 text-white bg-black bg-opacity-50 rounded-full w-8 h-8 flex items-center justify-center text-xl">&times;</button>
-          <div class="swiper galeri">
-            <div class="swiper-wrapper">${photos.join("")}</div>
-            <div class="swiper-pagination"></div>
-          </div>
-          <div class="p-4">
-            <h2 class="text-xl font-semibold">${item['MERK/TYPE MOBIL']}</h2>
-            <p class="text-sm text-gray-600">Nopol: ${item['NOPOL']}</p>
-            <p class="text-sm text-gray-600">Bulan: ${item['BULAN']}</p>
-            <p class="text-blue-700 font-bold mt-2 text-lg">${formatRupiah(item['HARGA JUAL (OTR)'])} (OTR)</p>
-          </div>
+    const card = document.createElement("div");
+    card.className = "bg-white rounded-xl shadow-md overflow-hidden";
+    card.innerHTML = `
+      <div class="swiper mySwiper">
+        <div class="swiper-wrapper">
+          ${photos.join("")}
         </div>
-      `;
+        <div class="swiper-pagination"></div>
+        <div class="swiper-button-next"></div>
+        <div class="swiper-button-prev"></div>
+      </div>
+      <div class="p-4">
+        <h2 class="text-lg font-bold">${item["MERK/TYPE MOBIL"] || "Tanpa Nama"}</h2>
+        <p class="text-gray-600">${item["NOPOL"] || ""}</p>
+        <p class="text-green-600 font-semibold">${item["HARGA JUAL (OTR)"] || ""}</p>
+      </div>
+    `;
 
-      document.getElementById("closeModalInner").onclick = () => closeModal();
-      document.getElementById("detailModal").onclick = (e) => {
-        if (e.target === document.getElementById("detailModal")) closeModal();
-      };
+    container.appendChild(card);
+  });
 
-      new Swiper('.galeri', { slidesPerView: 1, loop: true, pagination: { el: '.swiper-pagination', clickable: true } });
-      document.getElementById("detailModal").classList.remove("hidden");
-      document.getElementById("detailModal").classList.add("flex");
-    }
+  // Inisialisasi Swiper
+  new Swiper(".mySwiper", {
+    loop: true,
+    pagination: { el: ".swiper-pagination" },
+    navigation: { nextEl: ".swiper-button-next", prevEl: ".swiper-button-prev" },
+  });
+}
 
-    function closeModal() {
-      document.getElementById("detailModal").classList.add("hidden");
-      document.getElementById("detailModal").classList.remove("flex");
-    }
+loadData();
+</script>
 
-    async function loadData() {
-      const res = await fetch(sheetURL);
-      const data = await res.json();
-      const container = document.getElementById("mobilContainer");
-      container.innerHTML = data.map(item => {
-        const thumb = item["PHOTO 1"] ? getDriveUrl(item["PHOTO 1"]) : "https://via.placeholder.com/300x200?text=No+Image";
-        return `
-          <div class="bg-white rounded-lg shadow hover:shadow-lg overflow-hidden cursor-pointer" onclick='showModal(${JSON.stringify(item)})'>
-            <img src="${thumb}" class="w-full h-40 object-cover">
-            <div class="p-3">
-              <h3 class="text-sm font-semibold">${item['MERK/TYPE MOBIL']}</h3>
-              <p class="text-xs text-gray-500">${item['NOPOL']}</p>
-              <p class="text-blue-600 font-bold text-sm mt-1">${formatRupiah(item['HARGA JUAL (OTR)'])}</p>
-            </div>
-          </div>
-        `;
-      }).join("");
-    }
-
-    loadData();
-  </script>
 </body>
 </html>
