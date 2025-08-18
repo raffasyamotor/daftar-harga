@@ -15,7 +15,8 @@
   </header>
 
   <main class="max-w-6xl mx-auto px-4 py-6">
-    <div class="mb-6 flex flex-col md:flex-row gap-3">
+    <!-- FILTER -->
+    <div class="mb-3 flex flex-col md:flex-row gap-3">
       <input id="searchInput" type="text" placeholder="Cari merk/type mobil..."
         class="flex-1 border rounded px-4 py-2 shadow-sm focus:ring focus:ring-blue-200" />
 
@@ -30,6 +31,10 @@
         class="bg-red-500 text-white rounded px-4 py-2 shadow-sm hover:bg-red-600 transition">Reset</button>
     </div>
 
+    <!-- 🔹 Info Total Unit -->
+    <div id="totalInfo" class="mb-6 text-gray-700 font-medium"></div>
+
+    <!-- LIST MOBIL -->
     <div id="mobilList" class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"></div>
 
     <div id="loading" class="flex justify-center items-center my-8 hidden">
@@ -49,7 +54,7 @@
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 
   <script>
-    const apiURL = "https://script.google.com/macros/s/AKfycbwqfYwJ2cF5stp6qIG0n8V1bTiKet5kxQqSKN8dq1aSV_aDy3HHcSZpmKQTVjavQRGe/exec"; // sementara masih pakai SheetDB
+    const apiURL = "https://script.google.com/macros/s/AKfycbwqfYwJ2cF5stp6qIG0n8V1bTiKet5kxQqSKN8dq1aSV_aDy3HHcSZpmKQTVjavQRGe/exec"; 
     let allData = [], filteredData = [];
     let currentSort = "", searchText = "";
     let perLoad = 6, currentIndex = 0, isLoading = false;
@@ -62,6 +67,7 @@
     const resetBtn = document.getElementById("resetBtn");
     const detailModal = document.getElementById("detailModal");
     const modalContent = document.getElementById("modalContent");
+    const totalInfo = document.getElementById("totalInfo");
 
     function formatRupiah(str) {
       if (!str) return "Rp -";
@@ -86,6 +92,19 @@
         });
       }
 
+      // 🔹 Hitung total & per status
+      const total = filteredData.length;
+      const ready = filteredData.filter(x => x['STATUS'] === 'READY').length;
+      const booking = filteredData.filter(x => x['STATUS'] === 'BOOKING').length;
+      const terjual = filteredData.filter(x => x['STATUS'] === 'TERJUAL').length;
+
+      totalInfo.innerHTML = `
+        Total Unit: <span class="font-bold">${total}</span> |
+        <span class="text-green-600">READY: ${ready}</span> |
+        <span class="text-blue-600">BOOKING: ${booking}</span> |
+        <span class="text-red-600">TERJUAL: ${terjual}</span>
+      `;
+
       listContainer.innerHTML = "";
       currentIndex = 0;
       loadMore();
@@ -109,23 +128,20 @@
             <div class="p-4">
               <h2 class="text-lg font-semibold">${item['MERK/TYPE MOBIL'] || '-'}</h2>
               <p class="text-sm text-gray-600">Nopol: ${item['NOPOL'] || '-'}</p><br>
-            <!-- <p class="text-sm text-gray-600">Bulan: ${item['BULAN'] || '-'}</p>  -->
-           <p class="text-sm text-gray-600"><strong>MUF</strong><br>${item['MUF'] || '-'}</p>
-               <p class="text-sm text-gray-600"><strong>ADIRA</strong><br>${item['ADIRA'] || '-'}</p>
-                <p class="text-sm text-gray-600"><strong>OTO</strong><br>${item['OTO'] || '-'}</p>
-                 <p class="text-sm text-gray-600"><strong>CIMB NIAGA</strong><br>${item['CIMB NIAGA'] || '-'}</p>
-              <p class="text-blue-700 font-bold mt-2">${formatRupiah(item['HARGA JUAL (OTR)']) || '-'} (OTR)  <span class="
-  inline-block px-3 py-1 text-sm font-semibold rounded-full 
-  ${item['STATUS'] === 'READY' ? 'bg-green-100 text-green-700' : 
-    item['STATUS'] === 'BOOKING' ? 'bg-blue-100 text-blue-700' : 
-    item['STATUS'] === 'TERJUAL' ? 'bg-red-100 text-red-700' : 
-    'bg-gray-100 text-gray-600'}
-">
-  ${item['STATUS'] || '-'}
-</span></p>
-           
-
-
+              <p class="text-sm text-gray-600"><strong>MUF</strong><br>${item['MUF'] || '-'}</p>
+              <p class="text-sm text-gray-600"><strong>ADIRA</strong><br>${item['ADIRA'] || '-'}</p>
+              <p class="text-sm text-gray-600"><strong>OTO</strong><br>${item['OTO'] || '-'}</p>
+              <p class="text-sm text-gray-600"><strong>CIMB NIAGA</strong><br>${item['CIMB NIAGA'] || '-'}</p>
+              <p class="text-blue-700 font-bold mt-2">
+                ${formatRupiah(item['HARGA JUAL (OTR)']) || '-'} (OTR)  
+                <span class="inline-block px-3 py-1 text-sm font-semibold rounded-full 
+                  ${item['STATUS'] === 'READY' ? 'bg-green-100 text-green-700' : 
+                    item['STATUS'] === 'BOOKING' ? 'bg-blue-100 text-blue-700' : 
+                    item['STATUS'] === 'TERJUAL' ? 'bg-red-100 text-red-700' : 
+                    'bg-gray-100 text-gray-600'}">
+                  ${item['STATUS'] || '-'}
+                </span>
+              </p>
             </div>
           `;
           listContainer.appendChild(card);
@@ -141,69 +157,54 @@
       }, 400);
     }
 
-  function showModal(item) {
-  const photos = [];
+    function showModal(item) {
+      const photos = [];
+      if (item["LINK PHOTO"]) {
+        photos.push(`
+          <div class="swiper-slide flex justify-center items-center bg-gray-50">
+            <img src="${item["LINK PHOTO"]}" class="object-contain max-h-[350px] w-auto mx-auto" />
+          </div>
+        `);
+      }
+      for (let j = 1; j <= 10; j++) {
+        const key = `PHOTO ${j}`;
+        if (item[key]) {
+          photos.push(`
+            <div class="swiper-slide flex justify-center items-center bg-gray-50">
+              <img src="${item[key]}" class="object-contain max-h-[350px] w-auto mx-auto" />
+            </div>
+          `);
+        }
+      }
 
-  // Tampilkan LINK PHOTO (utama)
-  if (item["LINK PHOTO"]) {
-    photos.push(`
-      <div class="swiper-slide flex justify-center items-center bg-gray-50">
-        <img src="${item["LINK PHOTO"]}" class="object-contain max-h-[350px] w-auto mx-auto" />
-      </div>
-    `);
-  }
-
-  // Tambahkan PHOTO 1–10 jika ada
-  for (let j = 1; j <= 10; j++) {
-    const key = `PHOTO ${j}`;
-    if (item[key]) {
-      photos.push(`
-        <div class="swiper-slide flex justify-center items-center bg-gray-50">
-          <img src="${item[key]}" class="object-contain max-h-[350px] w-auto mx-auto" />
+      modalContent.innerHTML = `
+        <div class="relative">
+          <button id="closeModalInner" class="absolute top-2 right-2 z-50 text-white bg-black bg-opacity-50 rounded-full w-8 h-8 flex items-center justify-center text-xl">&times;</button>
+          <div class="swiper galeri">
+            <div class="swiper-wrapper">${photos.join("")}</div>
+            <div class="swiper-pagination"></div>
+          </div>
+          <div class="p-4">
+            <h2 class="text-xl font-semibold">${item['MERK/TYPE MOBIL']}</h2>
+            <p class="text-sm text-gray-600">Nopol: ${item['NOPOL']}</p>
+            <p class="text-sm text-gray-600">Bulan: ${item['BULAN']}</p>
+            <p class="text-blue-700 font-bold mt-2 text-lg">${formatRupiah(item['HARGA JUAL (OTR)'])} (OTR)</p>
+          </div>
         </div>
-      `);
-    }
-  }
+      `;
 
-      const salesWA = item['SALES WA'] || '6281234567890';
-    modalContent.innerHTML = `
-  <div class="relative">
-    <button id="closeModalInner" class="absolute top-2 right-2 z-50 text-white bg-black bg-opacity-50 rounded-full w-8 h-8 flex items-center justify-center text-xl">&times;</button>
-    <div class="swiper galeri">
-      <div class="swiper-wrapper">${photos.join("")}</div>
-      <div class="swiper-pagination"></div>
-    </div>
-    <div class="p-4">
-      <h2 class="text-xl font-semibold">${item['MERK/TYPE MOBIL']}</h2>
-      <p class="text-sm text-gray-600">Nopol: ${item['NOPOL']}</p>
-      <p class="text-sm text-gray-600">Bulan: ${item['BULAN']}</p>
-      <p class="text-blue-700 font-bold mt-2 text-lg">${formatRupiah(item['HARGA JUAL (OTR)'])} (OTR)</p>
-  <!--    <div class="text-center mt-4 space-y-2">
-        <p class="text-sm text-gray-600"><strong>MUF</strong><br>${item['MUF'] || '-'}</p>
-        <p class="text-sm text-gray-600"><strong>ADIRA</strong><br>${item['ADIRA'] || '-'}</p>
-        <p class="text-sm text-gray-600"><strong>OTO</strong><br>${item['OTO'] || '-'}</p>
-        <p class="text-sm text-gray-600"><strong>CIMB NIAGA</strong><br>${item['CIMB NIAGA'] || '-'}</p>
-      </div> -->
-    </div>
-  </div>
-`;
+      document.getElementById("closeModalInner").onclick = () => {
+        detailModal.classList.add("hidden");
+        detailModal.classList.remove("flex");
+      };
+      detailModal.onclick = (e) => {
+        if (e.target === detailModal) {
+          detailModal.classList.add("hidden");
+          detailModal.classList.remove("flex");
+        }
+      };
 
-
-// Tombol X
-document.getElementById("closeModalInner").onclick = () => {
-  detailModal.classList.add("hidden");
-  detailModal.classList.remove("flex");
-};
-
-// Klik area luar modal
-detailModal.onclick = (e) => {
-  if (e.target === detailModal) {
-    detailModal.classList.add("hidden");
-    detailModal.classList.remove("flex");
-  }
-};
-
-  new Swiper('.galeri', { slidesPerView: 1, loop: true, pagination: { el: '.swiper-pagination', clickable: true } });
+      new Swiper('.galeri', { slidesPerView: 1, loop: true, pagination: { el: '.swiper-pagination', clickable: true } });
       detailModal.classList.remove("hidden");
       detailModal.classList.add("flex");
     }
@@ -218,15 +219,13 @@ detailModal.onclick = (e) => {
     sortPrice.addEventListener("change", () => { currentSort = sortPrice.value; endMessage.classList.add("hidden"); applyFilter(); });
     resetBtn.addEventListener("click", () => { searchText = ""; currentSort = ""; searchInput.value = ""; sortPrice.value = ""; endMessage.classList.add("hidden"); applyFilter(); });
 
-   async function fetchData() {
-  loading.classList.remove("hidden");
-  const res = await fetch(apiURL);
-  allData = (await res.json()).reverse(); // <- balik urutan data
-  applyFilter();
-  loading.classList.add("hidden");
-}
-
-
+    async function fetchData() {
+      loading.classList.remove("hidden");
+      const res = await fetch(apiURL);
+      allData = (await res.json()).reverse(); 
+      applyFilter();
+      loading.classList.add("hidden");
+    }
     fetchData();
   </script>
 
