@@ -31,7 +31,7 @@
         class="bg-red-500 text-white rounded px-4 py-2 shadow-sm hover:bg-red-600 transition">Reset</button>
     </div>
 
-    <!-- 🔹 Info Total Unit -->
+    <!-- Info Total Unit + Rekap Status -->
     <div id="totalInfo" class="mb-6 text-gray-700 font-medium"></div>
 
     <!-- LIST MOBIL -->
@@ -54,7 +54,9 @@
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 
   <script>
-    const apiURL = "https://script.google.com/macros/s/AKfycbwqfYwJ2cF5stp6qIG0n8V1bTiKet5kxQqSKN8dq1aSV_aDy3HHcSZpmKQTVjavQRGe/exec"; 
+    // Ganti ke endpoint kamu
+    const apiURL = "https://script.google.com/macros/s/AKfycbwqfYwJ2cF5stp6qIG0n8V1bTiKet5kxQqSKN8dq1aSV_aDy3HHcSZpmKQTVjavQRGe/exec";
+
     let allData = [], filteredData = [];
     let currentSort = "", searchText = "";
     let perLoad = 6, currentIndex = 0, isLoading = false;
@@ -69,34 +71,75 @@
     const modalContent = document.getElementById("modalContent");
     const totalInfo = document.getElementById("totalInfo");
 
-    function formatRupiah(str) {
-      if (!str) return "Rp -";
-      let cleaned = (str + "").replace(/[^\d]/g, "");
-      let number = parseInt(cleaned);
-      if (isNaN(number)) return "Rp -";
-      return "Rp " + number.toLocaleString("id-ID");
+    // ---------- Utilities ----------
+    const F = {
+      get(obj, ...keys) {
+        for (const k of keys) {
+          if (obj && obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== "") {
+            return obj[k];
+          }
+        }
+        return "";
+      },
+      normStatus(v) {
+        return String(v || "").trim().toUpperCase();
+      },
+      parseRupiahToInt(v) {
+        const num = parseInt(String(v || "").replace(/[^\d]/g, ""), 10);
+        return isNaN(num) ? 0 : num;
+      },
+      formatRupiah(v) {
+        const n = this.parseRupiahToInt(v);
+        return n ? "Rp " + n.toLocaleString("id-ID") : "Rp -";
+      }
+    };
+
+    function keyMap(item) {
+      // Toleransi nama header yang berbeda-beda
+      const nama = F.get(item, 'MERK/TYPE MOBIL', 'MERK / TYPE MOBIL', 'MERK & TYPE', 'MERK', 'TYPE', 'NAMA', 'NAMA MOBIL');
+      const nopol = F.get(item, 'NOPOL', 'NO POL', 'PLAT', 'PLAT NOMOR');
+      const harga = F.get(item, 'HARGA JUAL (OTR)', 'HARGA OTR', 'HARGA', 'PRICE');
+      const statusRaw = F.get(item, 'STATUS', 'Status', 'status');
+      const status = F.normStatus(statusRaw);
+      const bulan = F.get(item, 'BULAN', 'Bulan', 'bulan');
+      const linkPhoto = F.get(item, 'LINK PHOTO', 'FOTO', 'PHOTO');
+      const bank = {
+        MUF: F.get(item, 'MUF'),
+        ADIRA: F.get(item, 'ADIRA'),
+        OTO: F.get(item, 'OTO'),
+        'CIMB NIAGA': F.get(item, 'CIMB NIAGA', 'CIMB')
+      };
+      const photos = [];
+      if (linkPhoto) photos.push(linkPhoto);
+      for (let j = 1; j <= 10; j++) {
+        const k = `PHOTO ${j}`;
+        const v = F.get(item, k);
+        if (v) photos.push(v);
+      }
+      return { nama, nopol, harga, status, bulan, bank, photos, _raw: item };
     }
 
     function applyFilter() {
-      filteredData = allData.filter(item => {
-        const merk = item["MERK/TYPE MOBIL"]?.toLowerCase() || "";
-        const nopol = item["NOPOL"]?.toLowerCase() || "";
-        return merk.includes(searchText) || nopol.includes(searchText);
+      const source = allData.map(keyMap);
+
+      filteredData = source.filter(x => {
+        const search = searchText.toLowerCase();
+        return x.nama.toLowerCase().includes(search) || x.nopol.toLowerCase().includes(search);
       });
 
       if (currentSort) {
         filteredData.sort((a, b) => {
-          const hargaA = parseInt((a['HARGA JUAL (OTR)'] || "0").replace(/[^\d]/g, "")) || 0;
-          const hargaB = parseInt((b['HARGA JUAL (OTR)'] || "0").replace(/[^\d]/g, "")) || 0;
-          return currentSort === "asc" ? hargaA - hargaB : hargaB - hargaA;
+          const A = F.parseRupiahToInt(a.harga);
+          const B = F.parseRupiahToInt(b.harga);
+          return currentSort === "asc" ? A - B : B - A;
         });
       }
 
-      // 🔹 Hitung total & per status
+      // Rekap status (normalisasi huruf)
       const total = filteredData.length;
-      const ready = filteredData.filter(x => x['STATUS'] === 'READY').length;
-      const booking = filteredData.filter(x => x['STATUS'] === 'BOOKING').length;
-      const terjual = filteredData.filter(x => x['STATUS'] === 'TERJUAL').length;
+      const ready = filteredData.filter(x => x.status === 'READY').length;
+      const booking = filteredData.filter(x => x.status === 'BOOKING').length;
+      const terjual = filteredData.filter(x => x.status === 'TERJUAL').length;
 
       totalInfo.innerHTML = `
         Total Unit: <span class="font-bold">${total}</span> |
@@ -105,8 +148,10 @@
         <span class="text-red-600">TERJUAL: ${terjual}</span>
       `;
 
+      // Render ulang
       listContainer.innerHTML = "";
       currentIndex = 0;
+      endMessage.classList.add("hidden");
       loadMore();
     }
 
@@ -117,29 +162,39 @@
 
       setTimeout(() => {
         const nextData = filteredData.slice(currentIndex, currentIndex + perLoad);
+        if (nextData.length === 0 && currentIndex === 0) {
+          // Empty state
+          listContainer.innerHTML = `
+            <div class="col-span-full text-center text-gray-500 py-10">
+              Tidak ada data yang cocok dengan filter/pencarian.
+            </div>`;
+        }
+
         nextData.forEach((item) => {
           const card = document.createElement("div");
           card.className = "bg-white shadow rounded overflow-hidden cursor-pointer hover:scale-105 transition";
           card.onclick = () => showModal(item);
 
-          const photo = item["LINK PHOTO"] || "https://via.placeholder.com/400x300?text=No+Image";
+          const photo = item.photos[0] || "https://via.placeholder.com/400x300?text=No+Image";
+          const statusBadgeClass =
+            item.status === 'READY' ? 'bg-green-100 text-green-700' :
+            item.status === 'BOOKING' ? 'bg-blue-100 text-blue-700' :
+            item.status === 'TERJUAL' ? 'bg-red-100 text-red-700' :
+            'bg-gray-100 text-gray-600';
+
           card.innerHTML = `
             <img src="${photo}" loading="lazy" class="w-full h-48 object-cover" />
             <div class="p-4">
-              <h2 class="text-lg font-semibold">${item['MERK/TYPE MOBIL'] || '-'}</h2>
-              <p class="text-sm text-gray-600">Nopol: ${item['NOPOL'] || '-'}</p><br>
-              <p class="text-sm text-gray-600"><strong>MUF</strong><br>${item['MUF'] || '-'}</p>
-              <p class="text-sm text-gray-600"><strong>ADIRA</strong><br>${item['ADIRA'] || '-'}</p>
-              <p class="text-sm text-gray-600"><strong>OTO</strong><br>${item['OTO'] || '-'}</p>
-              <p class="text-sm text-gray-600"><strong>CIMB NIAGA</strong><br>${item['CIMB NIAGA'] || '-'}</p>
+              <h2 class="text-lg font-semibold">${item.nama || '-'}</h2>
+              <p class="text-sm text-gray-600">Nopol: ${item.nopol || '-'}</p><br>
+              <p class="text-sm text-gray-600"><strong>MUF</strong><br>${item.bank.MUF || '-'}</p>
+              <p class="text-sm text-gray-600"><strong>ADIRA</strong><br>${item.bank.ADIRA || '-'}</p>
+              <p class="text-sm text-gray-600"><strong>OTO</strong><br>${item.bank.OTO || '-'}</p>
+              <p class="text-sm text-gray-600"><strong>CIMB NIAGA</strong><br>${item.bank['CIMB NIAGA'] || '-'}</p>
               <p class="text-blue-700 font-bold mt-2">
-                ${formatRupiah(item['HARGA JUAL (OTR)']) || '-'} (OTR)  
-                <span class="inline-block px-3 py-1 text-sm font-semibold rounded-full 
-                  ${item['STATUS'] === 'READY' ? 'bg-green-100 text-green-700' : 
-                    item['STATUS'] === 'BOOKING' ? 'bg-blue-100 text-blue-700' : 
-                    item['STATUS'] === 'TERJUAL' ? 'bg-red-100 text-red-700' : 
-                    'bg-gray-100 text-gray-600'}">
-                  ${item['STATUS'] || '-'}
+                ${F.formatRupiah(item.harga)} (OTR)
+                <span class="inline-block px-3 py-1 text-sm font-semibold rounded-full ${statusBadgeClass}">
+                  ${item.status || '-'}
                 </span>
               </p>
             </div>
@@ -151,44 +206,33 @@
         isLoading = false;
         loading.classList.add("hidden");
 
-        if (currentIndex >= filteredData.length) {
+        if (currentIndex >= filteredData.length && filteredData.length > 0) {
           endMessage.classList.remove("hidden");
+        } else {
+          endMessage.classList.add("hidden");
         }
-      }, 400);
+      }, 250);
     }
 
     function showModal(item) {
-      const photos = [];
-      if (item["LINK PHOTO"]) {
-        photos.push(`
-          <div class="swiper-slide flex justify-center items-center bg-gray-50">
-            <img src="${item["LINK PHOTO"]}" class="object-contain max-h-[350px] w-auto mx-auto" />
-          </div>
-        `);
-      }
-      for (let j = 1; j <= 10; j++) {
-        const key = `PHOTO ${j}`;
-        if (item[key]) {
-          photos.push(`
-            <div class="swiper-slide flex justify-center items-center bg-gray-50">
-              <img src="${item[key]}" class="object-contain max-h-[350px] w-auto mx-auto" />
-            </div>
-          `);
-        }
-      }
+      const slides = item.photos.map(src => `
+        <div class="swiper-slide flex justify-center items-center bg-gray-50">
+          <img src="${src}" class="object-contain max-h-[350px] w-auto mx-auto" />
+        </div>
+      `);
 
       modalContent.innerHTML = `
         <div class="relative">
           <button id="closeModalInner" class="absolute top-2 right-2 z-50 text-white bg-black bg-opacity-50 rounded-full w-8 h-8 flex items-center justify-center text-xl">&times;</button>
           <div class="swiper galeri">
-            <div class="swiper-wrapper">${photos.join("")}</div>
+            <div class="swiper-wrapper">${slides.join("")}</div>
             <div class="swiper-pagination"></div>
           </div>
           <div class="p-4">
-            <h2 class="text-xl font-semibold">${item['MERK/TYPE MOBIL']}</h2>
-            <p class="text-sm text-gray-600">Nopol: ${item['NOPOL']}</p>
-            <p class="text-sm text-gray-600">Bulan: ${item['BULAN']}</p>
-            <p class="text-blue-700 font-bold mt-2 text-lg">${formatRupiah(item['HARGA JUAL (OTR)'])} (OTR)</p>
+            <h2 class="text-xl font-semibold">${item.nama || '-'}</h2>
+            <p class="text-sm text-gray-600">Nopol: ${item.nopol || '-'}</p>
+            <p class="text-sm text-gray-600">Bulan: ${item.bulan || '-'}</p>
+            <p class="text-blue-700 font-bold mt-2 text-lg">${F.formatRupiah(item.harga)} (OTR)</p>
           </div>
         </div>
       `;
@@ -209,23 +253,54 @@
       detailModal.classList.add("flex");
     }
 
+    // Infinite scroll
     window.addEventListener('scroll', () => {
       if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 300) {
         if (currentIndex < filteredData.length) loadMore();
       }
     });
 
-    searchInput.addEventListener("input", () => { searchText = searchInput.value.toLowerCase(); endMessage.classList.add("hidden"); applyFilter(); });
-    sortPrice.addEventListener("change", () => { currentSort = sortPrice.value; endMessage.classList.add("hidden"); applyFilter(); });
-    resetBtn.addEventListener("click", () => { searchText = ""; currentSort = ""; searchInput.value = ""; sortPrice.value = ""; endMessage.classList.add("hidden"); applyFilter(); });
+    // Events
+    searchInput.addEventListener("input", () => {
+      searchText = searchInput.value.toLowerCase();
+      endMessage.classList.add("hidden");
+      applyFilter();
+    });
+    sortPrice.addEventListener("change", () => {
+      currentSort = sortPrice.value;
+      endMessage.classList.add("hidden");
+      applyFilter();
+    });
+    resetBtn.addEventListener("click", () => {
+      searchText = ""; currentSort = "";
+      searchInput.value = ""; sortPrice.value = "";
+      endMessage.classList.add("hidden");
+      applyFilter();
+    });
 
+    // Fetch & normalize any JSON shape (array / {data} / {records} / {values})
     async function fetchData() {
       loading.classList.remove("hidden");
-      const res = await fetch(apiURL);
-      allData = (await res.json()).reverse(); 
-      applyFilter();
-      loading.classList.add("hidden");
+      try {
+        const res = await fetch(apiURL);
+        const json = await res.json();
+        const rows = Array.isArray(json) ? json :
+                     (json.data || json.records || json.values || []);
+        if (!Array.isArray(rows)) throw new Error("Bentuk data tidak dikenali");
+        allData = rows.slice().reverse();
+      } catch (err) {
+        console.error("Gagal ambil data:", err);
+        listContainer.innerHTML = `
+          <div class="col-span-full text-center text-red-600 py-10">
+            Gagal memuat data dari API. Cek endpoint & izin akses.
+          </div>`;
+        allData = [];
+      } finally {
+        applyFilter();
+        loading.classList.add("hidden");
+      }
     }
+
     fetchData();
   </script>
 
